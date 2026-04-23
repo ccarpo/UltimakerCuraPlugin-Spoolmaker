@@ -14,6 +14,19 @@ ET.register_namespace("cura", _CURA_NS)
 
 
 @dataclass
+class CollectionResult:
+    filaments: List[Dict[str, Any]]
+    total_spools: int
+    archived_spools: int
+    duplicate_filament_spools: int
+    skipped: int
+
+    @property
+    def unique_filament_count(self) -> int:
+        return len(self.filaments)
+
+
+@dataclass
 class WriteResult:
     imported: int
     updated: int
@@ -27,8 +40,10 @@ class MaterialWriter:
     def __init__(self, base_url: str) -> None:
         self._base_url = base_url.rstrip("/")
 
-    def collect_filaments(self, spools: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
+    def collect_filaments(self, spools: List[Dict[str, Any]]) -> CollectionResult:
         filaments_by_id: Dict[str, Dict[str, Any]] = {}
+        archived_spools = 0
+        duplicate_filament_spools = 0
         skipped = 0
 
         for spool in spools:
@@ -37,6 +52,7 @@ class MaterialWriter:
                 continue
 
             if spool.get("archived"):
+                archived_spools += 1
                 continue
 
             filament = spool.get("filament")
@@ -57,12 +73,20 @@ class MaterialWriter:
             filament_key = str(filament_id)
             if filament_key not in filaments_by_id:
                 filaments_by_id[filament_key] = normalized
+            else:
+                duplicate_filament_spools += 1
 
         sorted_filaments = sorted(
             filaments_by_id.values(),
             key=lambda item: (item["brand"].lower(), item["material"].lower(), item["display_name"].lower())
         )
-        return sorted_filaments, skipped
+        return CollectionResult(
+            filaments=sorted_filaments,
+            total_spools=len(spools),
+            archived_spools=archived_spools,
+            duplicate_filament_spools=duplicate_filament_spools,
+            skipped=skipped,
+        )
 
     def write_materials(self, output_directory: str, filaments: List[Dict[str, Any]], skipped: int = 0) -> WriteResult:
         os.makedirs(output_directory, exist_ok=True)

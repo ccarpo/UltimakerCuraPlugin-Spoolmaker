@@ -1,0 +1,57 @@
+name: Package Cura Plugin
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate plugin Python files
+        run: |
+          python -c "from pathlib import Path; files=[Path('__init__.py'), Path('SpoolmanClient.py'), Path('MaterialWriter.py'), Path('SpoolmanMaterialExtension.py')]; [compile(file.read_text(encoding='utf-8'), str(file), 'exec') for file in files]; print('syntax-ok')"
+
+      - name: Build plugin archive
+        run: python package_plugin.py
+
+      - name: Read plugin version
+        id: plugin_version
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          metadata = json.loads(Path('plugin.json').read_text(encoding='utf-8'))
+          version = metadata['version']
+          print(f"version={version}")
+          with open(Path('.github_plugin_version'), 'w', encoding='utf-8') as handle:
+              handle.write(version)
+          PY
+          echo "version=$(cat .github_plugin_version)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimakerCuraPlugin-Spoolmaker-${{ steps.plugin_version.outputs.version }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip

@@ -1,7 +1,7 @@
 {
     "name": "Spoolman Materials",
     "author": "CCarpo",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Import Spoolman filament definitions as Cura materials.",
     "api": 8,
     "i18n-catalog": "cura"
